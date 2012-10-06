@@ -159,6 +159,7 @@ main(int argc, char**argv)
 		}
 
 		w = write;
+		close(xp[0]);
 	}		
 
 	w(p[1], &size, sizeof(size));
@@ -174,13 +175,15 @@ main(int argc, char**argv)
 			if (ret == -1) {
 				fprintf(logfile, "%ld[:%ld] failed: %s\n",
 					off, blksize, strerror(errno));
+				xoff *= -1;
 			} else if (off + ret < size) { 
 				fprintf(logfile, "%ld[:%ld] short read: got %d\n",
 					off, blksize, ret);
+				xoff *= -1;
 			}
 			// amend offset for target file
 			ret = lseek(1, off + blksize, SEEK_SET);
-			xoff *= -1;
+			assert(ret != -1);
 		}
 		w(p[1], &xoff, sizeof(xoff));
 	}

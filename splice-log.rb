@@ -1,17 +1,17 @@
 #!/usr/bin/env ruby
 
 def hms t
- h = t.to_i/3600
- t -= h * 3600
- m = t.to_i/60
- t -= m*60
- [h, m, t.to_i]
+  h = t.to_i/3600
+  t -= h * 3600
+  m = t.to_i/60
+  t -= m*60
+  [h, m, t.to_i]
 end
 
 def gm s
- g = s.to_i >> 10
- s -= g << 10
- [g, s.to_i]
+  g = s.to_i >> 10
+  s -= g << 10
+  [g, s.to_i]
 end
 
 pbw = Integer($*[0]||100)
