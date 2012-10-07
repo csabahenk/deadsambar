@@ -57,8 +57,16 @@ strtail(char *str, const char *pattern)
 	return NULL;
 }
 
+typedef struct {
+	FILE *logfile;
+	off_t size;
+	ssize_t blksize;
+	off_t off;
+	off_t target_off;
+} splccnf;
+
 int
-opt_parse(char *opt, FILE **logfile, off_t *size, ssize_t *blksize, char *errbuf)
+opt_parse(char *opt, splccnf *sc, char *errbuf)
 {
 	char *oarg;
 
@@ -67,8 +75,8 @@ opt_parse(char *opt, FILE **logfile, off_t *size, ssize_t *blksize, char *errbuf
 
 	oarg = strtail(opt, "logfile=");
 	if (oarg) {
-		*logfile = fopen(oarg, "a");
-		if (!*logfile) {
+		sc->logfile = fopen(oarg, "a");
+		if (!sc->logfile) {
 			sprintf(errbuf, "cannot open logfile: %s", strerror(errno));
 			return -1;
 		}
@@ -77,11 +85,19 @@ opt_parse(char *opt, FILE **logfile, off_t *size, ssize_t *blksize, char *errbuf
 
 	oarg = strtail(opt, "size=");
 	if (oarg)
-		return parsesize(oarg, size, errbuf);
+		return parsesize(oarg, &sc->size, errbuf);
 
 	oarg = strtail(opt, "blksize=");
 	if (oarg)
-		return parsesize(oarg, blksize, errbuf);
+		return parsesize(oarg, &sc->blksize, errbuf);
+
+	oarg = strtail(opt, "offset=");
+	if (oarg)
+		return parsesize(oarg, &sc->off, errbuf);
+
+	oarg = strtail(opt, "targetoffset=");
+	if (oarg)
+		return parsesize(oarg, &sc->target_off, errbuf);
 
 	sprintf(errbuf, "unrecognized option -%s", opt);
 	return -1;
@@ -99,17 +115,20 @@ int
 main(int argc, char**argv)
 {
 	int ret, i, j, p[] = {-1, -1};
-	FILE *logfile = stderr;
-	off_t size = -1;
-	ssize_t blksize = 1 << 22;
+	splccnf sc = {
+		.logfile    = stderr,
+		.size       = -1,
+		.blksize    = 1 << 22,
+		.off        = 0,
+		.target_off = -1
+	};
 	int64_t off, xoff, lastoff;
 	char errbuf[1024];
 	writely w = swallow;
 
 	for (i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
-			ret = opt_parse(argv[i] + 1,
-				&logfile, &size, &blksize, errbuf);
+			ret = opt_parse(argv[i] + 1, &sc, errbuf);
 			if (ret == -1) {
 				fprintf(stderr, "%s\n", errbuf);
 				return 1;
@@ -124,10 +143,12 @@ main(int argc, char**argv)
 		}
 	}
 
-	if (size == -1) {
+	if (sc.size == -1) {
 		fprintf(stderr, "size needs to be specified\n");
 		return 1;
 	}
+	if (sc.target_off == -1)
+		sc.target_off = sc.off;
 
 	if (argc > 1) {
 		pid_t pid;
@@ -162,27 +183,30 @@ main(int argc, char**argv)
 		close(xp[0]);
 	}		
 
-	w(p[1], &size, sizeof(size));
+	w(p[1], &sc.size, sizeof(sc.size));
 
-	lastoff = size % blksize ? (size / blksize) * blksize : size - blksize;
-	for (off = 0; off <= lastoff; off += blksize) {
+	lastoff = sc.size % sc.blksize ? (sc.size / sc.blksize) * sc.blksize : sc.size - sc.blksize;
+	ret = lseek(1, sc.target_off, SEEK_SET);
+	assert(ret != -1);
+	for (off = 0; off <= lastoff; off += sc.blksize) {
 		/* splice is no good as it wants one end to be a pipe
-		ret = splice(0, &off, 1, &off, blksize, SPLICE_F_MOVE);
+		ret = splice(0, &off, 1, &off, sc.blksize, SPLICE_F_MOVE);
 		*/
-		xoff = off;
-		ret = sendfile(1, 0, &xoff, blksize);
-		if (ret < blksize) {
+		xoff = sc.off + off;
+		ret = sendfile(1, 0, &xoff, sc.blksize);
+		xoff -= sc.off; // for progress bar
+		if (ret < sc.blksize) {
 			if (ret == -1) {
-				fprintf(logfile, "%ld[:%ld] failed: %s\n",
-					off, blksize, strerror(errno));
+				fprintf(sc.logfile, "%ld[:%ld] failed: %s\n",
+					off, sc.blksize, strerror(errno));
 				xoff *= -1;
-			} else if (off + ret < size) { 
-				fprintf(logfile, "%ld[:%ld] short read: got %d\n",
-					off, blksize, ret);
+			} else if (off + ret < sc.size) {
+				fprintf(sc.logfile, "%ld[:%ld] short read: got %d\n",
+					off, sc.blksize, ret);
 				xoff *= -1;
 			}
 			// amend offset for target file
-			ret = lseek(1, off + blksize, SEEK_SET);
+			ret = lseek(1, sc.target_off + off + sc.blksize, SEEK_SET);
 			assert(ret != -1);
 		}
 		w(p[1], &xoff, sizeof(xoff));
