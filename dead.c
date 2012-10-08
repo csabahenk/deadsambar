@@ -197,7 +197,7 @@ main(int argc, char**argv)
 		ret = splice(0, &off, 1, &off, sc.blksize, SPLICE_F_MOVE);
 		*/
 		xoff = sc.off + off;
-		ret = sendfile(1, 0, &xoff, sc.blksize);
+		ret = sendfile(STDOUT_FILENO, STDIN_FILENO, &xoff, sc.blksize);
 		xoff -= sc.off; // for progress bar
 		if (ret < sc.blksize) {
 			if (ret == -1) {
