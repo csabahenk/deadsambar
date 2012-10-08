@@ -205,9 +205,11 @@ main(int argc, char**argv)
 					off, sc.blksize, ret);
 				xoff *= -1;
 			}
-			// amend offset for target file
-			ret = lseek(1, sc.target_off + off + sc.blksize, SEEK_SET);
-			assert(ret != -1);
+			if (off + ret < sc.size) {
+				// amend offset for target file
+				ret = lseek(1, sc.target_off + off + sc.blksize, SEEK_SET);
+				assert(ret != -1);
+			}
 		}
 		w(p[1], &xoff, sizeof(xoff));
 	}
