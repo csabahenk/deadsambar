@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/sendfile.h>
+#include <sys/ioctl.h>
+#include <linux/fs.h>
 
 
 int
@@ -148,8 +150,22 @@ main(int argc, char**argv)
 	}
 
 	if (sc.size == -1) {
-		fprintf(stderr, "size needs to be specified\n");
-		return 1;
+		struct stat st;
+
+		ret = fstat(STDIN_FILENO, &st);
+		assert(ret != -1);
+		switch (st.st_mode & S_IFMT) {
+		case S_IFREG:
+			sc.size = st.st_size;
+			break;
+		case S_IFBLK:
+			ret = ioctl(STDIN_FILENO, BLKGETSIZE64, &sc.size);
+			assert(ret != -1);
+			break;
+		default:
+			fprintf(stderr, "cannot determine size\n");
+			return 1;
+		}
 	}
 	if (sc.target_off == -1)
 		sc.target_off = sc.off;
