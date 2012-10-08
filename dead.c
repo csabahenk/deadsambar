@@ -79,6 +79,9 @@ opt_parse(char *opt, splccnf *sc, char *errbuf)
 	if (strcmp(opt, "-") == 0)
 		return 1;
 
+	if (strcmp(opt, "h") == 0)
+		return -1;
+
 	oarg = strtail(opt, "logfile=");
 	if (oarg) {
 		sc->logfile = fopen(oarg, "a");
@@ -117,6 +120,8 @@ swallow(int fd, const void *buf, size_t count)
 	return count;
 }
 
+#define BLKSIZ (1 << 22)
+
 int
 main(int argc, char**argv)
 {
@@ -124,20 +129,42 @@ main(int argc, char**argv)
 	splccnf sc = {
 		.logfile    = stderr,
 		.size       = -1,
-		.blksize    = 1 << 22,
+		.blksize    = BLKSIZ,
 		.off        = 0,
 		.target_off = -1
 	};
 	int64_t off, xoff, lastoff;
-	char errbuf[1024];
+	char errbuf[1024] = {0,};
 	writely w = swallow;
 
 	for (i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
 			ret = opt_parse(argv[i] + 1, &sc, errbuf);
 			if (ret == -1) {
-				fprintf(stderr, "%s\n", errbuf);
-				return 1;
+				if (errbuf[0])
+					fprintf(stderr, "%s\n", errbuf);
+				fprintf(stderr, "\n"
+"dead does what dd(1) eventually aspired to do...\n"
+"Usage: %s [-opt=val...] [--] [progressbar helper...] < infile > outfile\n"
+"\n"
+"Data is transferred from infile to outfile using\n"
+"Linux sendfile(2) (yeh, so it's Linux only).\n"
+"\n"
+"Options (with values taking case insensitive k,m,g postfixes):\n"
+"-size=N\t\ttransfer N bytes (default: size of infile)\n"
+"-blksize=N\tblocksize (default: %d)\n"
+"-offset=N\tstart transfer at offset N (default: 0)\n"
+"-targetoffset=N\tposition target file to N (default:\n"
+"\t\tsame as offset)\n"
+"-logfile=F\t(default: stderr)\n"
+"\n"
+"If progressbar helper utility is given, it will\n"
+"be spawned and fed with data describing the\n"
+"progress of the operation.\n",
+				basename(argv[0]), // as of _GNU_SOURCE, argument
+						   // is not modified
+				BLKSIZ);
+				return !!errbuf[0];
 			}
 			for (j = i; j < argc; j++)
 				argv[j] = argv[j + 1];
@@ -195,8 +222,8 @@ main(int argc, char**argv)
 		close(p[0]);
 		close(xp[1]);
 		if (read(xp[0], &x, 1) == 1) {
-			fprintf(stderr, "can't exec progressbar\n");
-			return 1;
+			fprintf(stderr, "can't exec progressbar helper\n");
+			return 127;
 		}
 
 		w = write;
