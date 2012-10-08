@@ -1,3 +1,7 @@
+#ifndef linux
+#error This code is Linux only
+#endif
+
 #define _GNU_SOURCE
 #include <fcntl.h>
 #include <string.h>
