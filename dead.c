@@ -1,3 +1,5 @@
+// For terms of usage see LICENSE
+
 #ifndef linux
 #error This code is Linux only
 #endif

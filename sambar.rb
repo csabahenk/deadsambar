@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+# For terms of usage see LICENSE
+
 def hms t
   h = t.to_i/3600
   t -= h * 3600
