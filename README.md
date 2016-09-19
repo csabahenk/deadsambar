@@ -106,4 +106,4 @@ the number of bytes transferred up to that point. In case of error
 
 ## ... and the mysterious dead sambar!
 
-[![dead sambar](http://tribuneindia.com/2012/20120425/hp5.jpg)](http://tribuneindia.com/2012/20120425/himachal.htm#8)
+[![dead sambar](deadsambar.jpg)](https://web.archive.org/web/20121112192200/http://tribuneindia.com/2012/20120425/himachal.htm#8)
