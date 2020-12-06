@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/stat.h>
 #include <sys/sendfile.h>
 #include <sys/ioctl.h>
 #include <linux/fs.h>
