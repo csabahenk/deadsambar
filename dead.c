@@ -249,10 +249,12 @@ main(int argc, char**argv)
 			if (ret == -1) {
 				fprintf(sc.logfile, "%ld[:%ld] failed: %s\n",
 					off, sc.blksize, strerror(errno));
+				fflush(sc.logfile);
 				xoff *= -1;
 			} else if (off + ret < sc.size) {
 				fprintf(sc.logfile, "%ld[:%ld] short read: got %d\n",
 					off, sc.blksize, ret);
+				fflush(sc.logfile);
 				xoff *= -1;
 			}
 			if (off + ret < sc.size) {
