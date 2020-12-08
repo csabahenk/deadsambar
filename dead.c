@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <sys/sendfile.h>
 #include <sys/ioctl.h>
@@ -140,6 +141,41 @@ main(int argc, char**argv)
 	char errbuf[1024] = {0,};
 	writely w = swallow;
 
+	/* stuff for logging */
+	char *argbuf;
+	size_t argsiz;
+	time_t tim;
+	struct tm tm;
+	char timbuf[25];
+#define LOG(fmt, ...) do { \
+	time(&tim); \
+	localtime_r(&tim, &tm); \
+	strftime(timbuf, sizeof(timbuf), "%Y-%m-%dT%H:%M:%S%z", &tm); \
+	fprintf(sc.logfile, "%s " fmt "\n", timbuf, __VA_ARGS__); \
+	fflush(sc.logfile); \
+} while (0)
+
+	/* collecting arguments in argbuf (for diagnostic purposes) */
+	for (i = 0, argsiz = argc; i < argc; i++)
+		argsiz += strlen(argv[i]);
+	argbuf = malloc(argsiz);
+	if (!argbuf) {
+		fprintf(stderr, "allocation failed\n");
+		return 1;
+	}
+#define CAT(targ, lim, item) do { \
+	if (strlen(targ) + strlen(item) + 1 > lim) { \
+		fprintf(stderr, "panic: bufsize miscalc\n"); \
+		abort(); \
+	} \
+	strcat(targ, item); \
+} while (0)
+	for (i = 0; i < argc; i++) {
+		CAT(argbuf, argsiz, argv[i]);
+		if (i < argc - 1)
+			CAT(argbuf, argsiz, " ");
+	}
+
 	for (i = 1; i < argc; i++) {
 		if (argv[i][0] == '-') {
 			ret = opt_parse(argv[i] + 1, &sc, errbuf);
@@ -235,6 +271,9 @@ main(int argc, char**argv)
 
 	w(p[1], &sc.size, sizeof(sc.size));
 
+	LOG("starting as: %s", argbuf);
+	free(argbuf);
+
 	lastoff = sc.size % sc.blksize ? (sc.size / sc.blksize) * sc.blksize : sc.size - sc.blksize;
 	ret = lseek(1, sc.target_off, SEEK_SET);
 	assert(ret != -1);
@@ -247,14 +286,12 @@ main(int argc, char**argv)
 		xoff -= sc.off; // for progress bar
 		if (ret < sc.blksize) {
 			if (ret == -1) {
-				fprintf(sc.logfile, "%ld[:%ld] failed: %s\n",
-					off, sc.blksize, strerror(errno));
-				fflush(sc.logfile);
+				LOG("%ld[:%ld] failed: %s",
+				    off, sc.blksize, strerror(errno));
 				xoff *= -1;
 			} else if (off + ret < sc.size) {
-				fprintf(sc.logfile, "%ld[:%ld] short read: got %d\n",
-					off, sc.blksize, ret);
-				fflush(sc.logfile);
+				LOG("%ld[:%ld] short read: got %d",
+				    off, sc.blksize, ret);
 				xoff *= -1;
 			}
 			if (off + ret < sc.size) {
